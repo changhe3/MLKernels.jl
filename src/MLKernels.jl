@@ -49,7 +49,9 @@ export
 
     # Kernel Approximation
     NystromFact,
-    nystrom
+    nystrom,
+    nystrom_rsvd,
+    rsvd
 
 
 using SpecialFunctions: besselk, gamma

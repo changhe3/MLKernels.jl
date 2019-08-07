@@ -97,6 +97,49 @@ function nystrom(
     nystrom(:(row), κ, X, S)
 end
 
+function rsvd(W::Matrix{T}, k::Int64, p::Int64, q::Int64) where {T<:LinearAlgebra.BlasReal}
+    m = size(W, 1)
+    Ω = randn(T, m, k + p)
+    Z = W * Ω
+    Y = W^(q-1) * Z
+    Q = LinearAlgebra.qr!(Y).Q
+    # B = Q' * W * Q
+    B = (Q' * Y) \ (Q' * Ω)
+    eig_fac = LinearAlgebra.eigen!(B)
+    V = eig_fac.vectors
+    Λ = LinearAlgebra.Diagonal(eig_fac.values)
+    return Q * V, Λ
+end
+
+function nystrom_rsvd(
+        σ::Orientation,
+        κ::Kernel{T},
+        X::Matrix{T},
+        S::Vector{U} = samplematrix(σ, X, convert(T, 0.15));
+        rank::Float64 = 0.01,
+        oversampling::Int64 = 5,
+        power::Int64 = 2
+    ) where {T<:LinearAlgebra.BlasReal,U<:Integer}
+    Cᵀ, W = nystrom_sample(σ, κ, X, S)
+    m, n = size(Cᵀ)
+    d = fill(sqrt(n/m), m)
+    Cᵀ .*= d
+    W .*= d
+    k = max(Int64(trunc(n*rank)), 1)
+    Û, Λ = rsvd(W, k, oversampling, power)
+    # tol = eps(T)*size(Cs,1)
+    U_ = Cᵀ' * Û * LinearAlgebra.pinv(Λ)
+    return U_, Λ
+end
+
+function nystrom_rsvd(
+        κ::Kernel{T},
+        X::Matrix{T},
+        S::Vector{U} = samplematrix(:(row), X, convert(T,0.15))
+    ) where {T<:LinearAlgebra.BlasReal,U<:Integer}
+    nystrom_rsvd(:(row), κ, X, S)
+end
+
 """
     nystrom(CᵀWC::NystromFact)
 
@@ -105,5 +148,5 @@ Compute the approximate kernel matrix based on the Nystrom factorization.
 function kernelmatrix(CᵀWC::NystromFact{T}) where {T<:LinearAlgebra.BlasReal}
     W = CᵀWC.W
     C = CᵀWC.C
-    At_mul_B(C,W)*C
+    C' * W * C
 end
